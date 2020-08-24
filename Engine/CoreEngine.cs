@@ -26,7 +26,7 @@ namespace Engine
 
         private List<Entity> entities;
         private List<Entity> normalMapEntities;
-        //modifica
+        
         private Camera camera;
 
         private List<Light> lights = new List<Light>();
