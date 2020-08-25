@@ -63,6 +63,7 @@ namespace Engine
         private WaterTile water;
 
         ParticleSystem particles;
+        ParticleTexture particleTexture;
         public CoreEngine(int width = 800, int height = 600, string title = "Non va, oid!") : base(width, height, GraphicsMode.Default, title, GameWindowFlags.Default, DisplayDevice.Default, 0, 0, GraphicsContextFlags.ForwardCompatible)
         {
 
@@ -90,8 +91,10 @@ namespace Engine
             //*************************************************
 
             //*****************Particelle**********************
+            particleTexture = new ParticleTexture(loader.LoadTexture("ParticleStar.png"), 1);
+
             ParticleMaster.Init(loader, renderer.ProjectionMatrix);
-            particles = new ParticleSystem(50.0f, 25.0f, 0.3f, 4.0f);
+            particles = new ParticleSystem(50.0f, 25.0f, 0.3f, 4.0f, particleTexture);
             #region Sistema di particelle avanzato (da fixare)
             //particles = new ParticleSystem(50.0f, 25.0f, 0.3f, 4.0f, 1.0f);
             //particles.RandomizeRotation();

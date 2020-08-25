@@ -10,13 +10,14 @@ namespace Engine
 		public Vector3 Position { get; private set; }
 		public float Rotation { get; private set; }
 		public float Scale { get; private set; }
+        public ParticleTexture Texture { get; private set; }
 
-		private Vector3 velocity;
+        private Vector3 velocity;
 		private float gravityEffect;
 		private float lifeLength;
 		private float elapsedTime = 0;
 
-		public Particle(Vector3 position, Vector3 velocity, float gravityEffect, float lifeLength, float rotation, float scale)
+		public Particle(Vector3 position, Vector3 velocity, float gravityEffect, float lifeLength, float rotation, float scale, ParticleTexture texture)
 		{
 			Position = position;
 			this.velocity = velocity;
@@ -24,6 +25,8 @@ namespace Engine
 			this.lifeLength = lifeLength;
 			Rotation = rotation;
 			Scale = scale;
+            Texture = texture;
+
 			ParticleMaster.AddParticle(this);
 		}
 
@@ -59,15 +62,21 @@ namespace Engine
 			shader.Stop();
 		}
 
-		public void Render(List<Particle> particles, Camera camera)
+		public void Render(Dictionary<ParticleTexture ,List<Particle>> particles, Camera camera)
 		{
 			Matrix4 viewmatrix = Util.CreateViewMatrix(camera);
 			Prepare();
-			foreach (Particle particle in particles)
-			{
-				UpdateModelViewMatrix(particle.Position, particle.Rotation, particle.Scale, viewmatrix);
-				GL.DrawArrays(PrimitiveType.TriangleStrip, 0, quad.VertexCount);
-			}
+            foreach(ParticleTexture texture in particles.Keys)
+            {
+                GL.ActiveTexture(TextureUnit.Texture0);
+                GL.BindTexture(TextureTarget.Texture2D, texture.TextureHandle);
+                foreach (Particle particle in particles[texture])
+                {
+                    UpdateModelViewMatrix(particle.Position, particle.Rotation, particle.Scale, viewmatrix);
+                    GL.DrawArrays(PrimitiveType.TriangleStrip, 0, quad.VertexCount);
+                }
+            }
+
 			FinishRendering();
 		}
 
@@ -154,7 +163,7 @@ namespace Engine
 
 	public static class ParticleMaster
 	{
-		private static List<Particle> particles = new List<Particle>();
+        private static Dictionary<ParticleTexture, List<Particle>> particles = new Dictionary<ParticleTexture, List<Particle>>();
 		private static ParticleRenderer renderer;
 
 		public static void Init(Loader loader, Matrix4 projectionMatrix)
@@ -163,7 +172,10 @@ namespace Engine
         }
 		public static void Update()
         {
-			particles.RemoveAll(p => !p.Update());
+            foreach(List<Particle> particlesList in particles.Values)
+            {
+                particlesList.RemoveAll(p => !p.Update());
+            }
 
 			//IEnumerator<Particle> enumerator = particles.GetEnumerator();
 			//while(enumerator.MoveNext())
@@ -182,7 +194,13 @@ namespace Engine
         }
 		public static void AddParticle(Particle particle)
         {
-			particles.Add(particle);
+            List<Particle> list;
+			if(!particles.TryGetValue(particle.Texture, out list))
+            {
+                list = new List<Particle>();
+                particles.Add(particle.Texture, list);
+            }
+            list.Add(particle);
         }
 		public static void CleanUp()
         {
@@ -351,14 +369,16 @@ namespace Engine
         private float speed;
         private float gravityComplient;
         private float lifeLength;
+        private ParticleTexture texture;
         private Random random = new Random();
-
-        public ParticleSystem(float pps, float speed, float gravityComplient, float lifeLength)
+        
+        public ParticleSystem(float pps, float speed, float gravityComplient, float lifeLength, ParticleTexture texture)
         {
             this.pps = pps;
             this.speed = speed;
             this.gravityComplient = gravityComplient;
             this.lifeLength = lifeLength;
+            this.texture = texture;
         }
 
         public void GenerateParticles(Vector3 systemCenter)
@@ -384,7 +404,19 @@ namespace Engine
             Vector3 velocity = new Vector3(dirX, 1, dirZ);
             velocity.Normalize();
             velocity *= speed;
-            new Particle(new Vector3(center), velocity, gravityComplient, lifeLength, 0, 1);
+            new Particle(new Vector3(center), velocity, gravityComplient, lifeLength, 0, 1, texture);
+        }
+    }   
+
+    public class ParticleTexture
+    {
+        public int TextureHandle { get; private set; }
+        public int NumberOfRows { get; private set; }
+
+        public ParticleTexture(int textureHandle, int numberOfRows)
+        {
+            TextureHandle = textureHandle;
+            NumberOfRows = numberOfRows;
         }
     }
 }
