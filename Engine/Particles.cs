@@ -12,12 +12,17 @@ namespace Engine
 		public float Scale { get; private set; }
         public ParticleTexture Texture { get; private set; }
 
+        public Vector2 TexOffset1 { get; private set; } = new Vector2();
+        public Vector2 TexOffset2 { get; private set; } = new Vector2();
+        public float BlendFactor { get; private set; }
+        public float Distance { get; private set; }
+
         private Vector3 velocity;
 		private float gravityEffect;
 		private float lifeLength;
 		private float elapsedTime = 0;
 
-		public Particle(Vector3 position, Vector3 velocity, float gravityEffect, float lifeLength, float rotation, float scale, ParticleTexture texture)
+        public Particle(Vector3 position, Vector3 velocity, float gravityEffect, float lifeLength, float rotation, float scale, ParticleTexture texture)
 		{
 			Position = position;
 			this.velocity = velocity;
@@ -34,16 +39,41 @@ namespace Engine
 		/// Aggiorna le proprietà della particella in base al tempo passato
 		/// </summary>
 		/// <returns>False se la particella è attiva più della sua vita massima</returns>
-		public bool Update()
+		public bool Update(Camera camera)
 		{
 			velocity.Y += Player.GRAVITY * gravityEffect * Time.delta / 1000.0f;
 			Vector3 change = velocity;
 			change *= Time.delta / 1000.0f;
 			Position += change;
-			elapsedTime += Time.delta / 1000.0f;			
+            Distance = (camera.Position - Position).LengthSquared;
+            UpdateTextureCoordInfo();
+            elapsedTime += Time.delta / 1000.0f;			
 			return elapsedTime < lifeLength;
 		}
-	}
+
+
+        private void UpdateTextureCoordInfo()
+        {
+            float lifeFactor = elapsedTime / lifeLength;
+            int stageCount = Texture.NumberOfRows * Texture.NumberOfRows;
+            float atlasProgression = lifeFactor * stageCount;
+            int index1 = (int)Math.Floor(atlasProgression);
+            int index2 = index1 < stageCount - 1 ? index1 + 1 : index1;
+            BlendFactor = atlasProgression % 1;
+            TexOffset1 = SetTextureOffset(index1);
+            TexOffset2 = SetTextureOffset(index2);
+        }
+
+        private Vector2 SetTextureOffset(int index)
+        {
+            int column = index % Texture.NumberOfRows;
+            int row = index / Texture.NumberOfRows;
+            Vector2 offset;
+            offset.X = column / (float)Texture.NumberOfRows;
+            offset.Y = column / (float)Texture.NumberOfRows;
+            return offset;
+        }
+    }
 
 	public class ParticleRenderer
 	{
@@ -73,6 +103,7 @@ namespace Engine
                 foreach (Particle particle in particles[texture])
                 {
                     UpdateModelViewMatrix(particle.Position, particle.Rotation, particle.Scale, viewmatrix);
+                    shader.LoadTextureCoordInfo(particle.TexOffset1, particle.TexOffset2, texture.NumberOfRows, particle.BlendFactor);
                     GL.DrawArrays(PrimitiveType.TriangleStrip, 0, quad.VertexCount);
                 }
             }
@@ -131,33 +162,47 @@ namespace Engine
 		private const string VERTEX_FILE = "ParticleVertexShader.vert";
 		private const string FRAGMENT_FILE = "ParticleFragmentShader.frag";
 
-		private int location_modelViewMatrix;
-		private int location_projectionMatrix;
+		private int handleModelViewMatrix;
+		private int handleProjectionMatrix;
+		private int handleTextureOffset1;
+		private int handleTextureOffset2;
+		private int handleTexCoordInfo;
 
-		public ParticleShader() : base(VERTEX_FILE, FRAGMENT_FILE)
+        public ParticleShader() : base(VERTEX_FILE, FRAGMENT_FILE)
 		{
 
 		}
 
 		protected override void GetAllUniformLocations()
 		{
-			location_modelViewMatrix = GetUniformLocation("modelViewMatrix");
-			location_projectionMatrix = GetUniformLocation("projectionMatrix");
-		}
+			handleModelViewMatrix = GetUniformLocation("modelViewMatrix");
+			handleProjectionMatrix = GetUniformLocation("projectionMatrix");
+			handleTextureOffset1 = GetUniformLocation("texOffset1");
+			handleTextureOffset2 = GetUniformLocation("texOffset2");
+			handleTexCoordInfo = GetUniformLocation("texCoordInfo");
+        }
 
 		protected override void BindAttributes()
 		{
 			BindAttribute(0, "position");
 		}
 
+        public void LoadTextureCoordInfo(Vector2 offset1, Vector2 offset2, int numberOfRows, float blendFactor)
+        {
+            LoadToUniform(handleTextureOffset1, offset1); 
+            LoadToUniform(handleTextureOffset2, offset2);
+            LoadToUniform(handleTexCoordInfo, new Vector2((float)numberOfRows, blendFactor));
+
+        }
+
 		public void LoadModelViewMatrix(Matrix4 modelView)
 		{
-			LoadToUniform(location_modelViewMatrix, modelView);
+			LoadToUniform(handleModelViewMatrix, modelView);
 		}
 
 		public void LoadProjectionMatrix(Matrix4 projectionMatrix)
 		{
-			LoadToUniform(location_projectionMatrix, projectionMatrix);
+			LoadToUniform(handleProjectionMatrix, projectionMatrix);
 		}
 	}
 
@@ -170,11 +215,12 @@ namespace Engine
         {
 			renderer = new ParticleRenderer(loader, projectionMatrix);
         }
-		public static void Update()
+		public static void Update(Camera camera)
         {
             foreach(List<Particle> particlesList in particles.Values)
             {
-                particlesList.RemoveAll(p => !p.Update());
+                particlesList.RemoveAll(p => !p.Update(camera));
+                InsertionSort.SortHighToLow(particlesList);
             }
 
 			//IEnumerator<Particle> enumerator = particles.GetEnumerator();

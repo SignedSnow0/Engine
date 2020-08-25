@@ -1,4 +1,5 @@
 ﻿using OpenTK;
+using System.Collections.Generic;
 
 namespace Engine
 {
@@ -52,6 +53,36 @@ namespace Engine
             float l2 = ((p3.Z - p1.Z) * (pos.X - p3.X) + (p1.X - p3.X) * (pos.Y - p3.Z)) / det;
             float l3 = 1.0f - l1 - l2;
             return l1 * p1.Y + l2 * p2.Y + l3 * p3.Y;
+        }
+
+    }
+    /// <summary>
+    /// Ordina una lista di particelle in modo che quelle più distanti siano le prime
+    /// </summary>
+    public static class InsertionSort
+    {
+        public static void SortHighToLow(List<Particle> list)
+        {
+            for (int i = 1; i < list.Count; i++)
+            {
+                Particle item = list[i];
+                if (item.Distance > list[i - 1].Distance)
+                {
+                    SortUpHighToLow(list, i);
+                }
+            }
+        }
+
+        private static void SortUpHighToLow(List<Particle> list, int i)
+        {
+            Particle item = list[i];
+            int attemptPos = i - 1;
+            while (attemptPos != 0 && list[attemptPos - 1].Distance < item.Distance)
+            {
+                attemptPos--;
+            }
+            list.RemoveAt(i);
+            list.Insert(attemptPos, item);
         }
 
     }

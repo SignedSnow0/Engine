@@ -91,7 +91,7 @@ namespace Engine
             //*************************************************
 
             //*****************Particelle**********************
-            particleTexture = new ParticleTexture(loader.LoadTexture("ParticleStar.png"), 1);
+            particleTexture = new ParticleTexture(loader.LoadTexture("ParticleAtlas.png"), 4);
 
             ParticleMaster.Init(loader, renderer.ProjectionMatrix);
             particles = new ParticleSystem(50.0f, 25.0f, 0.3f, 4.0f, particleTexture);
@@ -220,7 +220,7 @@ namespace Engine
             camera.Move();
             mousePicker.Update();
 
-            ParticleMaster.Update();
+            ParticleMaster.Update(camera);
 
             KeyboardState input = Keyboard.GetState();
             if (input.IsKeyDown(Key.LShift))
