@@ -158,6 +158,42 @@ namespace Engine
             textures.Add(handle);
             return handle;
         }
+
+        public int CreateEmptyVbo(int floatCount)
+        {
+            int vbo = GL.GenBuffer();
+            vbos.Add(vbo);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
+            GL.BufferData(BufferTarget.ArrayBuffer, floatCount * sizeof(float), (IntPtr)0, BufferUsageHint.StreamDraw);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            return vbo;
+        }
+        /// <summary>
+        /// Aggiunge dei valori a un vbo già instanziato
+        /// </summary>
+        /// <param name="vao">Vao in cui inserire il vbo</param>
+        /// <param name="vbo">Vbo in  cui inserire i dati</param>
+        /// <param name="attribute">Posizione dell`attributo da inserire</param>
+        /// <param name="dataSize">Numero di valori per ogni cella</param>
+        /// <param name="instancedDataLength">Numero di valori per ogni gruppo</param>
+        /// <param name="offset">Posizione del primo valore nella lista</param>
+        public void AddInstancedAttribute(int vao, int vbo, int attribute, int dataSize, int instancedDataLength, int offset)
+        {
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
+            GL.BindVertexArray(vao);
+            GL.VertexAttribPointer(attribute, dataSize, VertexAttribPointerType.Float, false, instancedDataLength * 4, offset * 4);
+            GL.VertexAttribDivisor(attribute, 1);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            GL.BindVertexArray(0);
+        }
+        public void UpdateVbo(int vbo, float[] data)
+        {
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
+            GL.BufferData(BufferTarget.ArrayBuffer, data.Length * sizeof(float), data, BufferUsageHint.StreamDraw);
+            GL.BufferSubData<float>(BufferTarget.ArrayBuffer, (IntPtr)0, data.Length * sizeof(float), data);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        }
+
         /// <summary>
         /// Elimina tutte le istanze create attraverso l`istanza della classe Loader
         /// </summary>

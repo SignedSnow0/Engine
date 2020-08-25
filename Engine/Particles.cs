@@ -1,7 +1,9 @@
 ﻿using OpenTK;
 using OpenTK.Graphics.OpenGL4;
 using System;
+using System.CodeDom.Compiler;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace Engine
 {
@@ -11,7 +13,6 @@ namespace Engine
 		public float Rotation { get; private set; }
 		public float Scale { get; private set; }
         public ParticleTexture Texture { get; private set; }
-
         public Vector2 TexOffset1 { get; private set; } = new Vector2();
         public Vector2 TexOffset2 { get; private set; } = new Vector2();
         public float BlendFactor { get; private set; }
@@ -79,14 +80,29 @@ namespace Engine
 	{
 
 		private float[] VERTICES = { -0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, -0.5f };
+        private const int MAX_INSTANCES = 10000;
+        private const int INSTANCE_DATA_LENGTH = 21;
+        private float[] buffer = new float[MAX_INSTANCES * INSTANCE_DATA_LENGTH];
+        //16 per la matrice, 4 per la texture offset, 1 per il blendFactor
 
 		private RawModel quad;
 		private ParticleShader shader;
+        private Loader loader;
+        private int vbo;
+        private int pointer = 0;
 
 		public ParticleRenderer(Loader loader, Matrix4 projectionMatrix)
 		{
+            this.loader = loader;
+            vbo = loader.CreateEmptyVbo(INSTANCE_DATA_LENGTH * MAX_INSTANCES);
 			quad = loader.LoadToVao(VERTICES, 2);
-			shader = new ParticleShader();
+            loader.AddInstancedAttribute(quad.VaoHandle, vbo, 1, 4, INSTANCE_DATA_LENGTH,  0);
+            loader.AddInstancedAttribute(quad.VaoHandle, vbo, 2, 4, INSTANCE_DATA_LENGTH,  4);
+            loader.AddInstancedAttribute(quad.VaoHandle, vbo, 3, 4, INSTANCE_DATA_LENGTH,  8);
+            loader.AddInstancedAttribute(quad.VaoHandle, vbo, 4, 4, INSTANCE_DATA_LENGTH, 12);
+            loader.AddInstancedAttribute(quad.VaoHandle, vbo, 5, 4, INSTANCE_DATA_LENGTH, 16);
+            loader.AddInstancedAttribute(quad.VaoHandle, vbo, 6, 1, INSTANCE_DATA_LENGTH, 20);
+            shader = new ParticleShader();
 			shader.Start();
 			shader.LoadProjectionMatrix(projectionMatrix);
 			shader.Stop();
@@ -96,16 +112,18 @@ namespace Engine
 		{
 			Matrix4 viewmatrix = Util.CreateViewMatrix(camera);
 			Prepare();
-            foreach(ParticleTexture texture in particles.Keys)
+            foreach (ParticleTexture texture in particles.Keys)
             {
-                GL.ActiveTexture(TextureUnit.Texture0);
-                GL.BindTexture(TextureTarget.Texture2D, texture.TextureHandle);
+                BindTexture(texture);
+                pointer = 0;
+                float[] vboData = new float[particles[texture].Count * INSTANCE_DATA_LENGTH];
                 foreach (Particle particle in particles[texture])
                 {
-                    UpdateModelViewMatrix(particle.Position, particle.Rotation, particle.Scale, viewmatrix);
-                    shader.LoadTextureCoordInfo(particle.TexOffset1, particle.TexOffset2, texture.NumberOfRows, particle.BlendFactor);
-                    GL.DrawArrays(PrimitiveType.TriangleStrip, 0, quad.VertexCount);
+                    UpdateModelViewMatrix(particle.Position, particle.Rotation, particle.Scale, viewmatrix, vboData);
+                    UpdateTexCoorInfo(particle, vboData);
                 }
+                loader.UpdateVbo(vbo, vboData);
+                GL.DrawArraysInstanced(PrimitiveType.TriangleStrip, 0, quad.VertexCount, particles[texture].Count);
             }
 
 			FinishRendering();
@@ -115,8 +133,23 @@ namespace Engine
 		{
 			shader.Delete();
 		}
+        
+        private void BindTexture(ParticleTexture texture)
+        {
+            if (texture.Additive)
+            {
+                GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.One);
+            }
+            else
+            {
+                GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            }
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, texture.TextureHandle);
+            shader.LoadNumberOfRows(texture.NumberOfRows);
+        }
 
-		private void UpdateModelViewMatrix(Vector3 position, float rotation, float scale, Matrix4 viewMatrix)
+		private void UpdateModelViewMatrix(Vector3 position, float rotation, float scale, Matrix4 viewMatrix, float[] vboData)
 		{
 			Matrix4 modelMatrix = Matrix4.CreateTranslation(position);
 			modelMatrix.M11 = viewMatrix.M11;
@@ -133,15 +166,50 @@ namespace Engine
 			Matrix4 scaleRotationMatrix = scaleMatrix * rotationMatrix;
 			modelMatrix *= scaleRotationMatrix;
 			Matrix4 modelViewMatrix = modelMatrix * viewMatrix;
-			shader.LoadModelViewMatrix(modelViewMatrix);
+            StoreMatrixData(modelViewMatrix, vboData);
 		}
+
+        private void UpdateTexCoorInfo(Particle particle, float[] data)
+        {
+            data[pointer++] = particle.TexOffset1.X;
+            data[pointer++] = particle.TexOffset1.Y;
+            data[pointer++] = particle.TexOffset2.X;
+            data[pointer++] = particle.TexOffset2.Y;
+            data[pointer++] = particle.BlendFactor;
+        }
+
+        private void StoreMatrixData(Matrix4 matrix, float[] vboData)
+        {
+            vboData[pointer++] = matrix.M11;
+            vboData[pointer++] = matrix.M12;
+            vboData[pointer++] = matrix.M13;
+            vboData[pointer++] = matrix.M14;
+            vboData[pointer++] = matrix.M21;
+            vboData[pointer++] = matrix.M22;
+            vboData[pointer++] = matrix.M23;
+            vboData[pointer++] = matrix.M24;
+            vboData[pointer++] = matrix.M31;
+            vboData[pointer++] = matrix.M32;
+            vboData[pointer++] = matrix.M33;
+            vboData[pointer++] = matrix.M34;
+            vboData[pointer++] = matrix.M41;
+            vboData[pointer++] = matrix.M42;
+            vboData[pointer++] = matrix.M43;
+            vboData[pointer++] = matrix.M44;
+        }
 
 		private void Prepare()
 		{
 			shader.Start();
 			GL.BindVertexArray(quad.VaoHandle);
 			GL.EnableVertexAttribArray(0);
-			GL.Enable(EnableCap.Blend);
+			GL.EnableVertexAttribArray(1);
+			GL.EnableVertexAttribArray(2);
+			GL.EnableVertexAttribArray(3);
+			GL.EnableVertexAttribArray(4);
+			GL.EnableVertexAttribArray(5);
+			GL.EnableVertexAttribArray(6);
+            GL.Enable(EnableCap.Blend);
 			GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 			GL.DepthMask(false);
 		}
@@ -151,7 +219,13 @@ namespace Engine
 			GL.DepthMask(true);
 			GL.Disable(EnableCap.Blend);
 			GL.DisableVertexAttribArray(0);
-			GL.BindVertexArray(0);
+			GL.DisableVertexAttribArray(1);
+			GL.DisableVertexAttribArray(2);
+			GL.DisableVertexAttribArray(3);
+			GL.DisableVertexAttribArray(4);
+			GL.DisableVertexAttribArray(5);
+			GL.DisableVertexAttribArray(6);
+            GL.BindVertexArray(0);
 			shader.Stop();
 		}
 	}
@@ -162,11 +236,8 @@ namespace Engine
 		private const string VERTEX_FILE = "ParticleVertexShader.vert";
 		private const string FRAGMENT_FILE = "ParticleFragmentShader.frag";
 
-		private int handleModelViewMatrix;
 		private int handleProjectionMatrix;
-		private int handleTextureOffset1;
-		private int handleTextureOffset2;
-		private int handleTexCoordInfo;
+		private int handleNumberOfRows;
 
         public ParticleShader() : base(VERTEX_FILE, FRAGMENT_FILE)
 		{
@@ -175,30 +246,23 @@ namespace Engine
 
 		protected override void GetAllUniformLocations()
 		{
-			handleModelViewMatrix = GetUniformLocation("modelViewMatrix");
+			handleNumberOfRows = GetUniformLocation("numberOfRows");
 			handleProjectionMatrix = GetUniformLocation("projectionMatrix");
-			handleTextureOffset1 = GetUniformLocation("texOffset1");
-			handleTextureOffset2 = GetUniformLocation("texOffset2");
-			handleTexCoordInfo = GetUniformLocation("texCoordInfo");
+
         }
 
 		protected override void BindAttributes()
 		{
 			BindAttribute(0, "position");
-		}
-
-        public void LoadTextureCoordInfo(Vector2 offset1, Vector2 offset2, int numberOfRows, float blendFactor)
-        {
-            LoadToUniform(handleTextureOffset1, offset1); 
-            LoadToUniform(handleTextureOffset2, offset2);
-            LoadToUniform(handleTexCoordInfo, new Vector2((float)numberOfRows, blendFactor));
-
+			BindAttribute(1, "modelViewMatrix");
+			BindAttribute(5, "texOffsets");
+			BindAttribute(6, "blendFactor");
         }
 
-		public void LoadModelViewMatrix(Matrix4 modelView)
-		{
-			LoadToUniform(handleModelViewMatrix, modelView);
-		}
+        public void LoadNumberOfRows(int numberOfRows)
+        {
+            LoadToUniform(handleNumberOfRows, (float)numberOfRows);
+        }
 
 		public void LoadProjectionMatrix(Matrix4 projectionMatrix)
 		{
@@ -220,7 +284,10 @@ namespace Engine
             foreach(List<Particle> particlesList in particles.Values)
             {
                 particlesList.RemoveAll(p => !p.Update(camera));
-                InsertionSort.SortHighToLow(particlesList);
+                if (particlesList.Count > 0 && !particlesList[0].Texture.Additive)
+                {
+                    InsertionSort.SortHighToLow(particlesList);
+                }
             }
 
 			//IEnumerator<Particle> enumerator = particles.GetEnumerator();
@@ -458,6 +525,7 @@ namespace Engine
     {
         public int TextureHandle { get; private set; }
         public int NumberOfRows { get; private set; }
+        public bool Additive { get; private set; } = false;
 
         public ParticleTexture(int textureHandle, int numberOfRows)
         {
