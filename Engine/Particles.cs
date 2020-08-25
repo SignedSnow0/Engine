@@ -27,13 +27,17 @@ namespace Engine
 			ParticleMaster.AddParticle(this);
 		}
 
+		/// <summary>
+		/// Aggiorna le proprietà della particella in base al tempo passato
+		/// </summary>
+		/// <returns>False se la particella è attiva più della sua vita massima</returns>
 		public bool Update()
 		{
 			velocity.Y += Player.GRAVITY * gravityEffect * Time.delta / 1000.0f;
-			Vector3 change = new Vector3(velocity);
+			Vector3 change = velocity;
 			change *= Time.delta / 1000.0f;
 			Position += change;
-			elapsedTime += Time.delta / 1000.0f;
+			elapsedTime += Time.delta / 1000.0f;			
 			return elapsedTime < lifeLength;
 		}
 	}
@@ -74,8 +78,7 @@ namespace Engine
 
 		private void UpdateModelViewMatrix(Vector3 position, float rotation, float scale, Matrix4 viewMatrix)
 		{
-			Matrix4 modelMatrix = new Matrix4();
-			modelMatrix = Matrix4.CreateTranslation(position);
+			Matrix4 modelMatrix = Matrix4.CreateTranslation(position);
 			modelMatrix.M11 = viewMatrix.M11;
 			modelMatrix.M12 = viewMatrix.M21;
 			modelMatrix.M13 = viewMatrix.M31;
@@ -158,7 +161,6 @@ namespace Engine
         {
 			renderer = new ParticleRenderer(loader, projectionMatrix);
         }
-
 		public static void Update()
         {
 			particles.RemoveAll(p => !p.Update());
@@ -177,7 +179,6 @@ namespace Engine
 		public static void Render(Camera camera)
         {
 			renderer.Render(particles, camera);
-			Console.WriteLine($"{particles.Count}");
         }
 		public static void AddParticle(Particle particle)
         {
@@ -188,155 +189,202 @@ namespace Engine
 			renderer.Delete();
         }
 	}
+    #region Particle Complicato
+    //public class ParticleSystem
+    //{
 
-	public class ParticleSystem
-	{
-		private float pps, averageSpeed, gravityComplient, averageLifeLength, averageScale;
-		private float speedError, lifeError, scaleError = 0;
-		private float directionDeviation = 0;
-		private bool randomRotation = false;
-		private Random random = new Random();
-		private Vector3 direction;
+    //	private float pps, averageSpeed, gravityComplient, averageLifeLength, averageScale;
 
-		public ParticleSystem(float pps, float averageSpeed, float gravityComplient, float averageLifeLength, float averageScale)
-		{
-			this.pps = pps;
-			this.averageSpeed = averageSpeed;
-			this.gravityComplient = gravityComplient;
-			this.averageLifeLength = averageLifeLength;
-			this.averageScale = averageScale;
-		}
+    //	private float speedError, lifeError, scaleError = 0;
+    //	private bool randomRotation = false;
+    //	private Vector3 direction;
+    //	private float directionDeviation = 0;
 
-		/// <summary>
-		/// Imposta la direzione media delle particelle
-		/// </summary>
-		/// <param name="direction">La direzione media in cui le particelle si muovono</param>
-		/// <param name="deviation">Valore tra 0 e 1 che indica di quanto le particelle possono deviare</param>
-		public void SetDirection(Vector3 direction, float deviation)
-		{
-			this.direction = new Vector3(direction);
-			directionDeviation = (float)(deviation * Math.PI);
-		}
-		/// <summary>
-		/// Imposta il valore di rotazione randomica a vero;
-		/// </summary>
-		public void RandomizeRotation()
-		{
-			randomRotation = true;
-		}
-		/// <summary>
-		/// Imposta la possibile differenza di velocità tra particelle
-		/// </summary>
-		/// <param name="error">Valore tra 0 e 1 che indica il margine di errore di una particella</param>
-		public void SetSpeedError(float error)
-		{
-			speedError = error * averageSpeed;
-		}
-		/// <summary>
-		/// Imposta la possibile differenza di vita tra particelle
-		/// </summary>
-		/// <param name="error">Valore tra 0 e 1 che indica il margine di errore di una particella</param>
-		public void SetLifeError(float error)
-		{
-			lifeError = error * averageLifeLength;
-		}
-		/// <summary>
-		/// Imposta la possibile differenza di dimensione tra particelle
-		/// </summary>
-		/// <param name="error">Valore tra 0 e 1 che indica il margine di errore di una particella</param>
-		public void SetScaleError(float error)
-		{
-			scaleError = error * averageScale;
-		}
-		/// <summary>
-		/// Genera delle particelle in base al punto di origine
-		/// </summary>
-		/// <param name="systemCenter">Coordinate nel mondo del punto di origine</param>
-		public void GenerateParticles(Vector3 systemCenter)
-		{
-			float delta = Time.delta / 1000.0f;
-			float particlesToCreate = pps * delta;
-			int count = (int)Math.Floor(particlesToCreate);
-			float partialParticle = particlesToCreate % 1;
-			for (int i = 0; i < count; i++)
-			{
-				EmitParticle(systemCenter);
-			}
-			if (random.Next(1) < partialParticle)
-			{
-				EmitParticle(systemCenter);
-			}
-		}
+    //	private Random random = new Random();
 
-		private void EmitParticle(Vector3 center)
-		{
-			Vector3 velocity;
-			if (direction != Vector3.Zero)
-			{
-				velocity = GenerateRandomUnitVectorWithinCone(direction, directionDeviation);
-			}
-			else
-			{
-				velocity = GenerateRandomUnitVector();
-			}
-			velocity.Normalize();
-			velocity *= GenerateValue(averageSpeed, speedError);
-			float scale = GenerateValue(averageScale, scaleError);
-			float lifeLength = GenerateValue(averageLifeLength, lifeError);
-			new Particle(center, velocity, gravityComplient, lifeLength, GenerateRotation(), scale);
-		}
-		private float GenerateValue(float average, float errorMargin)
-		{
-			float offset = ((float)random.NextDouble() - 0.5f) * 2f * errorMargin;
-			return average + offset;
-		}
-		private float GenerateRotation()
-		{
-			if (randomRotation)
-			{
-				return (float)random.NextDouble() * 360f;
-			}
-			else
-			{
-				return 0;
-			}
-		}
-		private static Vector3 GenerateRandomUnitVectorWithinCone(Vector3 coneDirection, float angle)
-		{
-			float cosAngle = (float)Math.Cos(angle);
-			Random random = new Random();
-			float theta = (float)((float)random.NextDouble() * 2.0f * Math.PI);
-			float z = cosAngle + ((float)random.NextDouble() * (1 - cosAngle));
-			float rootOneMinusZSquared = (float)Math.Sqrt(1 - z * z);
-			float x = (float)(rootOneMinusZSquared * Math.Cos(theta));
-			float y = (float)(rootOneMinusZSquared * Math.Sin(theta));
+    //	public ParticleSystem(float pps, float speed, float gravityComplient, float lifeLength, float scale)
+    //	{
+    //		this.pps = pps;
+    //		this.averageSpeed = speed;
+    //		this.gravityComplient = gravityComplient;
+    //		this.averageLifeLength = lifeLength;
+    //		this.averageScale = scale;
+    //	}
 
-			Vector4 direction = new Vector4(x, y, z, 1);
-			if (coneDirection.X != 0 || coneDirection.Y != 0 || (coneDirection.Z != 1 && coneDirection.Z != -1))
-			{
-				Vector3 rotateAxis = Vector3.Cross(coneDirection, new Vector3(0, 0, 1));
-				rotateAxis.Normalize();
-				float rotateAngle = (float)Math.Acos(Vector3.Dot(coneDirection, new Vector3(0, 0, 1)));
-				Matrix4 rotation = Matrix4.CreateFromAxisAngle(rotateAxis, -rotateAngle);				
-				Matrix4 transform = Matrix4.CreateTranslation(direction.Xyz);
-				Matrix4 matrix = rotation * transform;
+    //	/**
+    //	 * @param direction - The average direction in which particles are emitted.
+    //	 * @param deviation - A value between 0 and 1 indicating how far from the chosen direction particles can deviate.
+    //	 */
+    //	public void SetDirection(Vector3 direction, float deviation)
+    //	{
+    //		this.direction = new Vector3(direction);
+    //		this.directionDeviation = MathHelper.DegreesToRadians(deviation);
+    //	}
 
-				direction = Vector4.Transform(matrix, direction);
-			}
-			else if (coneDirection.Z == -1)
-			{
-				direction.Z *= -1;
-			}
-			return new Vector3(direction);
-		}
-		private Vector3 GenerateRandomUnitVector()
-		{
-			float theta = (float)((float)random.NextDouble() * 2.0f * Math.PI);
-			float z = ((float)random.NextDouble() * 2.0f) - 1.0f;
-			float rootOneMinusZSquared = (float)Math.Sqrt(1.0f - z * z);
-			float x = (float)(rootOneMinusZSquared * Math.Cos(theta));
-			float y = (float)(rootOneMinusZSquared * Math.Sin(theta));
-			return new Vector3(x, y, z);
-		}
-	}
+    //	public void RandomizeRotation()
+    //	{
+    //		randomRotation = true;
+    //	}
+
+    //	/**
+    //	 * @param error
+    //	 *            - A number between 0 and 1, where 0 means no error margin.
+    //	 */
+    //	public void SetSpeedError(float error)
+    //	{
+    //		this.speedError = error * averageSpeed;
+    //	}
+
+    //	/**
+    //	 * @param error
+    //	 *            - A number between 0 and 1, where 0 means no error margin.
+    //	 */
+    //	public void SetLifeError(float error)
+    //	{
+    //		this.lifeError = error * averageLifeLength;
+    //	}
+
+    //	/**
+    //	 * @param error
+    //	 *            - A number between 0 and 1, where 0 means no error margin.
+    //	 */
+    //	public void SetScaleError(float error)
+    //	{
+    //		this.scaleError = error * averageScale;
+    //	}
+
+    //	public void GenerateParticles(Vector3 systemCenter)
+    //	{
+    //		float delta = Time.delta / 1000.0f;
+    //		float particlesToCreate = pps * delta;
+    //		int count = (int)Math.Floor(particlesToCreate);
+    //		float partialParticle = particlesToCreate % 1;
+    //		for (int i = 0; i < count; i++)
+    //		{
+    //			EmitParticle(systemCenter);
+    //		}
+    //		if (random.NextDouble() < partialParticle)
+    //		{
+    //			EmitParticle(systemCenter);
+    //		}
+    //	}
+
+    //	private void EmitParticle(Vector3 center)
+    //	{
+    //		Vector3 velocity;
+    //		if (direction != Vector3.Zero)
+    //		{
+    //			velocity = GenerateRandomUnitVectorWithinCone(direction, directionDeviation);
+    //		}
+    //		else
+    //		{
+    //			velocity = GenerateRandomUnitVector();
+    //		}
+    //		velocity = Vector3.Normalize(velocity);
+    //		velocity *= GenerateValue(averageSpeed, speedError);
+    //		float scale = GenerateValue(averageScale, scaleError);
+    //		float lifeLength = GenerateValue(averageLifeLength, lifeError);
+    //		new Particle(new Vector3(center), velocity, gravityComplient, lifeLength, GenerateRotation(), scale);
+    //	}
+
+    //	private float GenerateValue(float average, float errorMargin)
+    //	{
+    //		float offset = ((float)random.NextDouble() - 0.5f) * 2f * errorMargin;
+    //		return average + offset;
+    //	}
+
+    //	private float GenerateRotation()
+    //	{
+    //		if (randomRotation)
+    //		{
+    //			return (float)random.NextDouble() * 360f;
+    //		}
+    //		else
+    //		{
+    //			return 0;
+    //		}
+    //	}
+
+    //	private static Vector3 GenerateRandomUnitVectorWithinCone(Vector3 coneDirection, float angle)
+    //	{
+    //		float cosAngle = (float)Math.Cos(angle);
+    //		Random random = new Random();
+    //		float theta = (float)((float)random.NextDouble() * 2f * Math.PI);
+    //		float z = cosAngle + ((float)random.NextDouble() * (1 - cosAngle));
+    //		float rootOneMinusZSquared = (float)Math.Sqrt(1 - z * z);
+    //		float x = (float)(rootOneMinusZSquared * Math.Cos(theta));
+    //		float y = (float)(rootOneMinusZSquared * Math.Sin(theta));
+
+    //		Vector4 direction = new Vector4(x, y, z, 1);
+    //		if (coneDirection.X != 0 || coneDirection.Y != 0 || (coneDirection.Z != 1 && coneDirection.Z != -1))
+    //		{
+    //			Vector3 rotateAxis = Vector3.Cross(coneDirection, new Vector3(0, 0, 1));
+    //			rotateAxis = Vector3.Normalize(rotateAxis);
+    //			float rotateAngle = (float)Math.Acos(Vector3.Dot(coneDirection, new Vector3(0, 0, 1)));
+    //			Matrix4 rotationMatrix = Matrix4.CreateFromAxisAngle(rotateAxis, -rotateAngle);
+    //			direction = Vector4.Transform(rotationMatrix, direction);
+    //		}
+    //		else if (coneDirection.Z == -1)
+    //		{
+    //			direction.Z *= -1;
+    //		}
+    //		return new Vector3(direction.Xyz);
+    //	}
+
+    //	private Vector3 GenerateRandomUnitVector()
+    //	{
+    //		float theta = (float)MathHelper.DegreesToRadians(random.NextDouble());
+    //		float z = (float)(random.NextDouble() * 2) - 1.0f;
+    //		float rootOneMinusZSquared = (float)Math.Sqrt(1 - z * z);
+    //		float x = (float)(rootOneMinusZSquared * Math.Cos(theta));
+    //		float y = (float)(rootOneMinusZSquared * Math.Sin(theta));
+    //		return new Vector3(x, y, z);
+    //	}
+
+    //}
+    #endregion
+
+    public class ParticleSystem
+    {
+
+        private float pps;
+        private float speed;
+        private float gravityComplient;
+        private float lifeLength;
+        private Random random = new Random();
+
+        public ParticleSystem(float pps, float speed, float gravityComplient, float lifeLength)
+        {
+            this.pps = pps;
+            this.speed = speed;
+            this.gravityComplient = gravityComplient;
+            this.lifeLength = lifeLength;
+        }
+
+        public void GenerateParticles(Vector3 systemCenter)
+        {
+            float delta = Time.delta / 1000.0f;
+            float particlesToCreate = pps * delta;
+            int count = (int)Math.Floor(particlesToCreate);
+            float partialParticle = particlesToCreate % 1;
+            for (int i = 0; i < count; i++)
+            {
+                EmitParticle(systemCenter);
+            }
+            if (random.NextDouble() < partialParticle)
+            {
+                EmitParticle(systemCenter);
+            }
+        }
+
+        private void EmitParticle(Vector3 center)
+        {
+            float dirX = (float)random.NextDouble() * 2f - 1f;
+            float dirZ = (float)random.NextDouble() * 2f - 1f;
+            Vector3 velocity = new Vector3(dirX, 1, dirZ);
+            velocity.Normalize();
+            velocity *= speed;
+            new Particle(new Vector3(center), velocity, gravityComplient, lifeLength, 0, 1);
+        }
+    }
 }

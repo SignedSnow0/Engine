@@ -26,7 +26,7 @@ namespace Engine
 
         private List<Entity> entities;
         private List<Entity> normalMapEntities;
-        //modifica
+
         private Camera camera;
 
         private List<Light> lights = new List<Light>();
@@ -63,7 +63,7 @@ namespace Engine
         private WaterTile water;
 
         ParticleSystem particles;
-        public CoreEngine(int width = 800, int height = 600, string title = "Non va, oid!") :base(width, height, GraphicsMode.Default, title, GameWindowFlags.Default, DisplayDevice.Default, 0, 0, GraphicsContextFlags.ForwardCompatible)
+        public CoreEngine(int width = 800, int height = 600, string title = "Non va, oid!") : base(width, height, GraphicsMode.Default, title, GameWindowFlags.Default, DisplayDevice.Default, 0, 0, GraphicsContextFlags.ForwardCompatible)
         {
 
         }
@@ -74,7 +74,7 @@ namespace Engine
             loader = new Loader();
             TextMaster.Init(loader, Width, Height);
             renderer = new MasterRenderer(loader);
-            
+
 
             terrains = new List<Terrain>();
             entities = new List<Entity>();
@@ -91,12 +91,15 @@ namespace Engine
 
             //*****************Particelle**********************
             ParticleMaster.Init(loader, renderer.ProjectionMatrix);
-            particles = new ParticleSystem(50.0f, 25.0f, 0.3f, 4.0f, 1.0f);
-            particles.RandomizeRotation();
-            particles.SetDirection(new Vector3(0.0f, 1.0f, 0.0f), 0.1f);
-            particles.SetLifeError(0.1f);
-            particles.SetSpeedError(0.4f);
-            particles.SetScaleError(0.8f);
+            particles = new ParticleSystem(50.0f, 25.0f, 0.3f, 4.0f);
+            #region Sistema di particelle avanzato (da fixare)
+            //particles = new ParticleSystem(50.0f, 25.0f, 0.3f, 4.0f, 1.0f);
+            //particles.RandomizeRotation();
+            //particles.SetDirection(new Vector3(0.0f, 1.0f, 0.0f), 0.1f);
+            //particles.SetLifeError(0.1f);
+            //particles.SetSpeedError(0.4f);
+            //particles.SetScaleError(0.8f);
+            #endregion
             //*************************************************
 
             //*********************Font************************
@@ -149,7 +152,7 @@ namespace Engine
                     float z = (float)random.NextDouble() * -150;
                     if (!((x > 50 && x < 100) || (z < -50 && z > -100)))
                     {
-                        float y = terrain.GetTerrainHeight(x,z);
+                        float y = terrain.GetTerrainHeight(x, z);
                         entities.Add(new Entity(fern, new Vector3(x, y, z), 0, (float)random.NextDouble() * 360, 0, 0.9f, random.Next(3)));
                     }
                 }
@@ -209,7 +212,7 @@ namespace Engine
         {
             long currentFrameTime = watch.GetCurrentTime();
             Delta = watch.Delta(currentFrameTime, FrameTime);
-            
+
             playerEntity.Move(terrains);
             camera.Move();
             mousePicker.Update();
@@ -217,7 +220,7 @@ namespace Engine
             ParticleMaster.Update();
 
             KeyboardState input = Keyboard.GetState();
-            if(input.IsKeyDown(Key.LShift))
+            if (input.IsKeyDown(Key.LShift))
             {
                 particles.GenerateParticles(playerEntity.Position);
             }
@@ -245,13 +248,13 @@ namespace Engine
             renderer.Render(entities, normalMapEntities, terrains, lights, camera, new Vector4(0.0f, -1.0f, 0.0f, water.Height));
 
             GL.Disable(EnableCap.ClipDistance0);
-          
-            waterFrameBuffers.UnbindCurrentFrameBuffer(Width,Height);
+
+            waterFrameBuffers.UnbindCurrentFrameBuffer(Width, Height);
             renderer.Render(entities, normalMapEntities, terrains, lights, camera, new Vector4(0.0f, 1.0f, 0.0f, 0.0f));
             waterRenderer.Render(waters, camera, lights[0]);
             ParticleMaster.Render(camera);
             TextMaster.Render();
-            
+
             Context.SwapBuffers();
             base.OnRenderFrame(e);
         }
