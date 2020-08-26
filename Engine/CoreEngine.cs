@@ -140,11 +140,11 @@ namespace Engine
             //*************************************************
 
             //******************Entità*************************
-            rockEntity = new Entity(rocks, new Vector3(75.0f, terrain.GetTerrainHeight(75.0f, -75.0f), -75.0f), 0.0f, 0.0f, 0.0f, 10.0f);
+            rockEntity = new Entity(rocks, new Vector3(75.0f, terrain.GetHeightOfTerrain(75.0f, -75.0f), -75.0f), 0.0f, 0.0f, 0.0f, 10.0f);
             entities.Add(rockEntity);
-            bobbleEntity = new Entity(bobble, new Vector3(85.0f, terrain.GetTerrainHeight(85.0f, -75.0f), -75.0f), 0.0f, 0.0f, 0.0f, 1.0f);
+            bobbleEntity = new Entity(bobble, new Vector3(85.0f, terrain.GetHeightOfTerrain(85.0f, -75.0f), -75.0f), 0.0f, 0.0f, 0.0f, 1.0f);
             entities.Add(bobbleEntity);
-            lampEntity = new Entity(lamp, new Vector3(65.0f, terrain.GetTerrainHeight(65.0f, -75.0f), -75.0f), 0.0f, 0.0f, 0.0f, 1.0f);
+            lampEntity = new Entity(lamp, new Vector3(65.0f, terrain.GetHeightOfTerrain(65.0f, -75.0f), -75.0f), 0.0f, 0.0f, 0.0f, 1.0f);
             entities.Add(lampEntity);
 
             for (int i = 0; i < 60; i++)
@@ -155,7 +155,7 @@ namespace Engine
                     float z = (float)random.NextDouble() * -150;
                     if (!((x > 50 && x < 100) || (z < -50 && z > -100)))
                     {
-                        float y = terrain.GetTerrainHeight(x, z);
+                        float y = terrain.GetHeightOfTerrain(x, z);
                         entities.Add(new Entity(fern, new Vector3(x, y, z), 0, (float)random.NextDouble() * 360, 0, 0.9f, random.Next(3)));
                     }
                 }
@@ -165,7 +165,7 @@ namespace Engine
                     float z = (float)random.NextDouble() * -150;
                     if (!((x > 50 && x < 100) || (z < -50 && z > -100)))
                     {
-                        float y = terrain.GetTerrainHeight(x, z);
+                        float y = terrain.GetHeightOfTerrain(x, z);
                         entities.Add(new Entity(bobble, new Vector3(x, y, z), 0, (float)random.NextDouble() * 360, 0, (float)random.NextDouble() * 0.6f + 0.8f, random.Next(3)));
                     }
                 }
@@ -177,13 +177,13 @@ namespace Engine
             barrelModel.Texture.shineDamper = 10.0f;
             barrelModel.Texture.reflectivity = 0.5f;
             barrelModel.Texture.NormalMap = loader.LoadTexture("BarrelNormal.png");
-            normalMapEntities.Add(new Entity(barrelModel, new Vector3(163.0f, terrain.GetTerrainHeight(163.0f, -67.0f) + 6.5f, -67.0f), 0.0f, 0.0f, 0.0f, 1.0f));
+            normalMapEntities.Add(new Entity(barrelModel, new Vector3(163.0f, terrain.GetHeightOfTerrain(163.0f, -67.0f) + 6.5f, -67.0f), 0.0f, 0.0f, 0.0f, 1.0f));
 
             TexturedModel boulderModel = new TexturedModel(NormalMappedObjLoader.LoadOBJ("Boulder.obj", loader), new ModelTexture(loader.LoadTexture("Boulder.png")));
             boulderModel.Texture.shineDamper = 5.0f;
             boulderModel.Texture.reflectivity = 0.3f;
             boulderModel.Texture.NormalMap = loader.LoadTexture("BoulderNormal.png");
-            normalMapEntities.Add(new Entity(boulderModel, new Vector3(59.0f, terrain.GetTerrainHeight(59, -149) + 6.5f, -149), 0.0f, 0.0f, 0.0f, 1.0f));
+            normalMapEntities.Add(new Entity(boulderModel, new Vector3(59.0f, terrain.GetHeightOfTerrain(59, -149) + 6.5f, -149), 0.0f, 0.0f, 0.0f, 1.0f));
             ///*******************Luci*************************
             lights.Add(new Light(new Vector3(199.0f, 200.0f, -84.0f), new Vector3(0.6f, 0.6f, 0.6f)));
             lights.Add(new Light(lampEntity.Position, new Vector3(2.0f, 6.0f, 7.0f), new Vector3(1.0f, 0.01f, 0.002f)));
@@ -198,7 +198,7 @@ namespace Engine
             waterFrameBuffers = new WaterFrameBuffer(Width, Height);
             waterRenderer = new WaterRenderer(loader, waterShader, renderer.ProjectionMatrix, waterFrameBuffers);
             waters = new List<WaterTile>();
-            water = new WaterTile(187.0f, -199.0f, terrain.GetTerrainHeight(187.0f, -199.0f) + 7.0f);
+            water = new WaterTile(187.0f, -199.0f, terrain.GetHeightOfTerrain(187.0f, -199.0f) + 7.0f);
             waters.Add(water);
             //*************************************************
 

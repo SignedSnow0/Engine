@@ -5,22 +5,35 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Security.AccessControl;
+using System.Xml;
 
 namespace Engine
 {
     public class Terrain
     {
-        public const float SIZE = 400;
+        private const float SIZE = 400;
         private const float MAX_PIXEL_COLOR = 255;
         private const float MAX_HEIGHT = 40;
+        private float[,] heights;
+        private int seed = new Random().Next(1000000000);
+        private HeightsGenerator generator;
+        private int vertexCount = 128;
 
-        public float[,] Heights { get; private set; }
         public float X { get; private set; }
         public float Z { get; private set; }
         public RawModel Model { get; private set; }
         public TerrainTexturePack TexturePack { get; private set; }
         public TerrainTexture BlendMap { get; private set; }
 
+        public Terrain(int gridX, int gridZ,Loader loader, TerrainTexturePack texturePack, TerrainTexture blendMap)
+        {
+            TexturePack = texturePack;
+            BlendMap = blendMap;
+            X = gridX * SIZE;
+            Z = gridZ * SIZE;
+            generator = new HeightsGenerator(gridX, gridZ, vertexCount, seed);
+            Model = GenerateTerrain(loader);
+        }
         public Terrain(float gridX, float gridZ, Loader loader, TerrainTexturePack texturePack, TerrainTexture blendMap, string heightMap)
         {
             X = gridX * SIZE;
@@ -28,12 +41,60 @@ namespace Engine
             TexturePack = texturePack;
             BlendMap = blendMap;
             Model = GenerateTerrain(loader, heightMap);
-        }   
+        }
+        private RawModel GenerateTerrain(Loader loader)
+        {
+            HeightsGenerator generator = new HeightsGenerator();
+            int count = vertexCount * vertexCount;
+            heights = new float[vertexCount, vertexCount];
+            float[] vertices = new float[count * 3];
+            float[] normals = new float[count * 3];
+            float[] textureCoords = new float[count * 2];
+            uint[] indices = new uint[6 * (vertexCount - 1) * (vertexCount * 1)];
+            int vertexPointer = 0;
+            for (int i = 0; i < vertexCount; i++)
+            {
+                for (int j = 0; j < vertexCount; j++)
+                {
+                    vertices[vertexPointer * 3] = j / ((float)vertexCount - 1) * SIZE;
+                    float height = GetHeight(j, i);
+                    vertices[vertexPointer * 3 + 1] = height;
+                    heights[j, i] = height;
+                    vertices[vertexPointer * 3 + 2] = i / ((float)vertexCount - 1) * SIZE;
+                    Vector3 normal = CalculateNormal(j, i);
+                    normals[vertexPointer * 3] = normal.X;
+                    normals[vertexPointer * 3 + 1] = normal.Y;
+                    normals[vertexPointer * 3 + 2] = normal.Z;
+                    textureCoords[vertexPointer * 2] = j / ((float)vertexCount - 1);
+                    textureCoords[vertexPointer * 2 + 1] = i / ((float)vertexCount - 1);
+                    vertexPointer++;
+                }
+            }
+            int pointer = 0;
+            for (int gz = 0; gz < vertexCount - 1; gz++)
+            {
+                for (int gx = 0; gx < vertexCount - 1; gx++)
+                {
+                    uint topLeft = (uint)Math.Abs((gz * vertexCount) + gx);
+                    uint topRight = topLeft + 1;
+                    uint bottomLeft = (uint)Math.Abs(((gz + 1) * vertexCount) + gx);
+                    uint bottomRight = bottomLeft + 1;
+                    indices[pointer++] = topLeft;
+                    indices[pointer++] = bottomLeft;
+                    indices[pointer++] = topRight;
+                    indices[pointer++] = topRight;
+                    indices[pointer++] = bottomLeft;
+                    indices[pointer++] = bottomRight;
+                }
+            }
+            return loader.LoadToVao(vertices, textureCoords, normals, indices);
+        }
+
         private RawModel GenerateTerrain(Loader loader, string heightMap)
         {
             Bitmap bitmap = new Bitmap($"Textures/{heightMap}");
             int vertexCount = bitmap.Height;
-            Heights = new float[vertexCount, vertexCount];
+            heights = new float[vertexCount, vertexCount];
             int count = vertexCount * vertexCount;
             float[] vertices = new float[count * 3];
             float[] normals = new float[count * 3];
@@ -46,7 +107,7 @@ namespace Engine
                 {
                     vertices[vertexPointer * 3] = j / ((float)vertexCount - 1) * SIZE;
                     float height = GetHeight(j, i, bitmap);
-                    Heights[j, i] = height;
+                    heights[j, i] = height;
                     vertices[vertexPointer * 3 + 1] = height;
                     vertices[vertexPointer * 3 + 2] = i / ((float)vertexCount - 1) * SIZE;
                     Vector3 normal = CalculateNormal(j, i, bitmap);
@@ -77,16 +138,17 @@ namespace Engine
             }
             return loader.LoadToVao(vertices, textureCoords, normals, indices);
         }
-        public float GetTerrainHeight(float worldX, float worldZ)
+
+        public float GetHeightOfTerrain(float worldX, float worldZ)
         {
             float terrainX = worldX - X;
             float terrainZ = worldZ - Z;
             //Trova il quadrato dove si trova l'entità
-            float gridSquareSize = SIZE / ((float)Heights.GetLength(0) - 1);
+            float gridSquareSize = SIZE / ((float)heights.GetLength(0) - 1);
             int gridX = (int)Math.Floor(terrainX / gridSquareSize);
             int gridZ = (int)Math.Floor(terrainZ / gridSquareSize);
             //trova il triangolo che fa parte del quadrato
-            if (gridX >= (Heights.GetLength(0) - 1) || gridZ >= (Heights.GetLength(1) - 1) || gridX < 0 || gridZ < 0)
+            if (gridX >= (heights.GetLength(0) - 1) || gridZ >= (heights.GetLength(1) - 1) || gridX < 0 || gridZ < 0)
             {
                 return 0;
             }
@@ -96,21 +158,20 @@ namespace Engine
             //calcola se collide o no
             if (xCoord <= (1 - zCoord))
             {
-                answer = Util.BarryCentric(new Vector3(0, Heights[gridX, gridZ], 0),
-                                           new Vector3(1, Heights[gridX + 1, gridZ], 0),
-                                           new Vector3(0, Heights[gridX, gridZ + 1], 1),
+                answer = Util.BarryCentric(new Vector3(0, heights[gridX, gridZ], 0),
+                                           new Vector3(1, heights[gridX + 1, gridZ], 0),
+                                           new Vector3(0, heights[gridX, gridZ + 1], 1),
                                            new Vector2(xCoord, zCoord));
             }
             else
             {
-                answer = Util.BarryCentric(new Vector3(1, Heights[gridX + 1, gridZ], 0),
-                                           new Vector3(1, Heights[gridX + 1, gridZ + 1], 1),
-                                           new Vector3(0, Heights[gridX, gridZ + 1], 1),
+                answer = Util.BarryCentric(new Vector3(1, heights[gridX + 1, gridZ], 0),
+                                           new Vector3(1, heights[gridX + 1, gridZ + 1], 1),
+                                           new Vector3(0, heights[gridX, gridZ + 1], 1),
                                            new Vector2(xCoord, zCoord));
             }
             return answer;
         }
-
         private Vector3 CalculateNormal(int x, int z, Bitmap image)
         {
             float heightL = GetHeight(x - 1, z, image);
@@ -121,9 +182,19 @@ namespace Engine
             normal.Normalize();
             return normal;
         }
+        private Vector3 CalculateNormal(int x, int z)
+        {
+            float heightL = GetHeight(x - 1, z);
+            float heightR = GetHeight(x + 1, z);
+            float heightD = GetHeight(x, z - 1);
+            float heightU = GetHeight(x, z + 1);
+            Vector3 normal = new Vector3(heightL - heightR, 2.0f, heightD - heightU);
+            normal.Normalize();
+            return normal;
+        }
         private float GetHeight(int x, int z, Bitmap heightMap)
         {
-            if(x < 0 || x >= heightMap.Height || z < 0 || z >= heightMap.Height)
+            if (x < 0 || x >= heightMap.Height || z < 0 || z >= heightMap.Height)
             {
                 return 0;
             }
@@ -132,7 +203,11 @@ namespace Engine
             height /= MAX_PIXEL_COLOR / 2f;
             height *= MAX_HEIGHT;
             return height;
-        } 
+        }
+        private float GetHeight(int x, int z)
+        {
+            return generator.GenerateHeight(x, z);
+        }
     }
 
     public class TerrainRenderer
@@ -360,5 +435,82 @@ namespace Engine
             this.gTexture = gTexture;
             this.bTexture = bTexture;
         }
+    }
+
+    public class HeightsGenerator
+    {
+
+        private const float AMPLITUDE = 30f;
+        private const int OCTAVES = 3;
+        private const float ROUGHNESS = 0.3f;
+
+        private Random random;
+        private int seed;
+        private int xOffset = 0;
+        private int zOffset = 0;
+
+        public HeightsGenerator()
+        {
+            seed = new Random().Next(1000000000);
+        }
+
+        //only works with POSITIVE gridX and gridZ values!
+        public HeightsGenerator(int gridX, int gridZ, int vertexCount, int seed)
+        {
+            this.seed = seed;
+            xOffset = gridX * (vertexCount - 1);
+            zOffset = gridZ * (vertexCount - 1);
+        }
+
+        public float GenerateHeight(int x, int z)
+        {
+            float total = 0;
+            float d = (float)Math.Pow(2, OCTAVES - 1);
+            for (int i = 0; i < OCTAVES; i++)
+            {
+                float freq = (float)(Math.Pow(2, i) / d);
+                float amp = (float)Math.Pow(ROUGHNESS, i) * AMPLITUDE;
+                total += GetInterpolatedNoise((x + xOffset) * freq, (z + zOffset) * freq) * amp;
+            }
+            return total;
+        }
+
+        private float GetInterpolatedNoise(float x, float z)
+        {
+            int intX = (int)x;
+            int intZ = (int)z;
+            float fracX = x - intX;
+            float fracZ = z - intZ;
+
+            float v1 = GetSmoothNoise(intX, intZ);
+            float v2 = GetSmoothNoise(intX + 1, intZ);
+            float v3 = GetSmoothNoise(intX, intZ + 1);
+            float v4 = GetSmoothNoise(intX + 1, intZ + 1);
+            float i1 = Interpolate(v1, v2, fracX);
+            float i2 = Interpolate(v3, v4, fracX);
+            return Interpolate(i1, i2, fracZ);
+        }
+
+        private float Interpolate(float a, float b, float blend)
+        {
+            double theta = blend * Math.PI;
+            float f = (float)(1.0f - Math.Cos(theta)) * 0.5f;
+            return a * (1.0f - f) + b * f;
+        }
+
+        private float GetSmoothNoise(int x, int z)
+        {
+            float corners = (GetNoise(x - 1, z - 1) + GetNoise(x + 1, z - 1) + GetNoise(x - 1, z + 1) + GetNoise(x + 1, z + 1)) / 16.0f;
+            float sides = (GetNoise(x - 1, z) + GetNoise(x + 1, z) + GetNoise(x, z - 1) + GetNoise(x, z + 1)) / 8.0f;
+            float center = GetNoise(x, z) / 4.0f;
+            return corners + sides + center;
+        }
+
+        private float GetNoise(int x, int z)
+        {
+            random = new Random(x * 49364632 + z * 325265616 + seed);
+            return (float)random.NextDouble() * 2f - 1f;
+        }
+
     }
 }

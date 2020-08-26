@@ -39,7 +39,7 @@ namespace Engine
             {
                 if (Position.X >= terrain.X && Position.Z >= terrain.Z)
                 {
-                    float terrainHeight = terrain.GetTerrainHeight(Position.X, Position.Z);
+                    float terrainHeight = terrain.GetHeightOfTerrain(Position.X, Position.Z);
                     if (Position.Y < terrainHeight)
                     {
                         upwardsSpeed = 0;
