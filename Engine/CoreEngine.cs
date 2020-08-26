@@ -26,6 +26,7 @@ namespace Engine
 
         private List<Entity> entities;
         private List<Entity> normalMapEntities;
+        private List<GuiTexture> guiTextures;
 
         private Camera camera;
 
@@ -61,9 +62,9 @@ namespace Engine
         private List<WaterTile> waters;
         private WaterFrameBuffer waterFrameBuffers;
         private WaterTile water;
-
-        ParticleSystem particles;
-        ParticleTexture particleTexture;
+        private GuiRenderer guiRenderer;
+        private ParticleSystem particles;
+        private ParticleTexture particleTexture;
         public CoreEngine(int width = 800, int height = 600, string title = "Non va, oid!") : base(width, height, GraphicsMode.Default, title, GameWindowFlags.Default, DisplayDevice.Default, 0, 0, GraphicsContextFlags.ForwardCompatible)
         {
 
@@ -73,15 +74,8 @@ namespace Engine
         {
             Random random = new Random();
             loader = new Loader();
-            TextMaster.Init(loader, Width, Height);
-            renderer = new MasterRenderer(loader);
-
-
-            terrains = new List<Terrain>();
             entities = new List<Entity>();
-            normalMapEntities = new List<Entity>();
-            lights = new List<Light>();
-
+            guiTextures = new List<GuiTexture>();
             //********************Player***********************
             playerData = OBJLoader.LoadOBJ("Person.obj");
             playerModel = loader.LoadToVao(playerData.vertices, playerData.textureCoords, playerData.normals, playerData.indices);
@@ -89,6 +83,18 @@ namespace Engine
             playerEntity = new Player(playerTextured, new Vector3(77.0f, 85.0f, -80.0f), 0.0f, -209.0f, 0.0f, 0.7f);
             entities.Add(playerEntity);
             //*************************************************
+
+            //********************Camera***********************
+            camera = new Camera(playerEntity);
+            //*************************************************
+
+            TextMaster.Init(loader, Width, Height);
+            renderer = new MasterRenderer(loader, camera, Width, Height);
+
+            terrains = new List<Terrain>();
+
+            normalMapEntities = new List<Entity>();
+            lights = new List<Light>();
 
             //*****************Particelle**********************
             particleTexture = new ParticleTexture(loader.LoadTexture("ParticleAtlas.png"), 4);
@@ -185,12 +191,8 @@ namespace Engine
             boulderModel.Texture.NormalMap = loader.LoadTexture("BoulderNormal.png");
             normalMapEntities.Add(new Entity(boulderModel, new Vector3(59.0f, terrain.GetHeightOfTerrain(59, -149) + 6.5f, -149), 0.0f, 0.0f, 0.0f, 1.0f));
             ///*******************Luci*************************
-            lights.Add(new Light(new Vector3(199.0f, 200.0f, -84.0f), new Vector3(0.6f, 0.6f, 0.6f)));
-            lights.Add(new Light(lampEntity.Position, new Vector3(2.0f, 6.0f, 7.0f), new Vector3(1.0f, 0.01f, 0.002f)));
-            //*************************************************
-
-            //********************Camera***********************
-            camera = new Camera(playerEntity);
+            lights.Add(new Light(new Vector3(199000.0f, 200000.0f, -84000.0f), new Vector3(0.6f, 0.6f, 0.6f)));
+            
             //*************************************************
 
             //********************Acqua************************
@@ -203,8 +205,13 @@ namespace Engine
             //*************************************************
 
             mousePicker = new MousePicker(camera, renderer.ProjectionMatrix);
-            lampEntityMouse = new Entity(lamp, new Vector3(0.0f, 0, 0.0f), 0.0f, 0.0f, 0.0f, 1.0f);
-            lights.Add(new Light(lampEntityMouse.Position, new Vector3(7.0f, 3.0f, 5.0f), new Vector3(1.0f, 0.01f, 0.002f)));
+
+            //*********************GUIs************************
+            GuiTexture shadowMap = new GuiTexture(renderer.GetShadowMapTexture(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
+            //guiTextures.Add(shadowMap);
+
+            guiRenderer = new GuiRenderer(loader);
+            //*************************************************
 
             base.OnLoad(e);
 
@@ -236,6 +243,9 @@ namespace Engine
 
         protected override void OnRenderFrame(FrameEventArgs e)
         {
+            renderer.RenderShadowMap(entities, lights[0]);
+
+
             GL.Enable(EnableCap.ClipDistance0);
 
             waterFrameBuffers.BindReflectionFrameBuffer();
@@ -257,6 +267,7 @@ namespace Engine
             waterRenderer.Render(waters, camera, lights[0]);
             ParticleMaster.Render(camera);
             TextMaster.Render();
+            guiRenderer.Render(guiTextures);
 
             Context.SwapBuffers();
             base.OnRenderFrame(e);
@@ -267,6 +278,8 @@ namespace Engine
             GL.Viewport(0, 0, Width, Height);
             TextMaster.windowWidth = Width;
             TextMaster.windowHeight = Height;
+            renderer.Width = Width;
+            renderer.Height = Height;
             mousePicker.width = Width;
             mousePicker.height = Height;
             base.OnResize(e);

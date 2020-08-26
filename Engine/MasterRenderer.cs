@@ -9,9 +9,9 @@ namespace Engine
     /// </summary>
     public class MasterRenderer
     {
-        private const float FOV = 70.0f;
-        private const float NEAR_PLANE = 0.1f;
-        private const float FAR_PLANE = 1000;
+        public const float FOV = 70.0f;
+        public const float NEAR_PLANE = 0.1f;
+        public const float FAR_PLANE = 1000;
         public const float RED = 0.5f;
         public const float GREEN = 0.5f;
         public const float BLUE = 0.5f;
@@ -21,6 +21,7 @@ namespace Engine
         private TerrainRenderer terrainRenderer;
         private TerrainShader terrainShader = new TerrainShader();
         private SkyboxRenderer skyboxRenderer;
+        private ShadowMapMasterRenderer shadowMapRenderer;
 
         private NormalMappingRenderer normalMappingRenderer;
 
@@ -28,17 +29,22 @@ namespace Engine
         public StaticShader shader { get; private set; } = new StaticShader();
         public EntityRenderer renderer { get; private set; }
 
+        public int Width { get; set; }
+        public int Height { get; set; }
         /// <summary>
         /// Instanzia un oggetto di classe MasterRenderer
         /// </summary>
-        public MasterRenderer(Loader loader)
+        public MasterRenderer(Loader loader,Camera camera, int width, int height)
         {
             EnableCulling();
+            Width = width;
+            Height = height;
             CreateProjectionMatrix();
             renderer = new EntityRenderer(shader, ProjectionMatrix);
             terrainRenderer = new TerrainRenderer(terrainShader, ProjectionMatrix);
             skyboxRenderer = new SkyboxRenderer(loader, ProjectionMatrix);
             normalMappingRenderer = new NormalMappingRenderer(ProjectionMatrix);
+            shadowMapRenderer = new ShadowMapMasterRenderer(camera, width, height);
         }
 
         /// <summary>
@@ -135,6 +141,16 @@ namespace Engine
            }
             Render(lights, camera, clipPlane);
         }
+
+        public void RenderShadowMap(List<Entity> entities, Light sun)
+        {
+            foreach(Entity entity in entities)
+            {
+                ProcessEntity(entity);
+            }
+            shadowMapRenderer.Render(this.entities, sun);
+            this.entities.Clear();
+        }
         /// <summary>
         /// Non renderizza le facce il cui normale non puntano verso la scena
         /// </summary>
@@ -151,6 +167,11 @@ namespace Engine
         {
             GL.Disable(EnableCap.CullFace);
         }
+
+        public int GetShadowMapTexture()
+        {
+            return shadowMapRenderer.GetShadowMap();
+        }
         /// <summary>
         /// Elimina dalla memoria tutti gli shader utilizzati
         /// </summary>
@@ -159,6 +180,7 @@ namespace Engine
             shader.Delete();
             terrainShader.Delete();
             normalMappingRenderer.Delete();
+            shadowMapRenderer.Delete();
         }
 
         private void Prepare()
@@ -170,7 +192,7 @@ namespace Engine
         }
         private void CreateProjectionMatrix()
         {
-            ProjectionMatrix = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(FOV), DisplayDevice.Default.Width / (float)DisplayDevice.Default.Height, NEAR_PLANE, FAR_PLANE);
+            ProjectionMatrix = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(FOV), Width / (float)Height, NEAR_PLANE, FAR_PLANE);
         }
     }
 }

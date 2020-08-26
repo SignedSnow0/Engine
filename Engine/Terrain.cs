@@ -3,9 +3,6 @@ using OpenTK.Graphics.OpenGL4;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Drawing.Imaging;
-using System.Security.AccessControl;
-using System.Xml;
 
 namespace Engine
 {
